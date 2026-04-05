@@ -61,6 +61,7 @@ export function calculateDropPosition(
   rackHeight: number,
   uHeight: number,
   _rackPadding: number,
+  snapIncrementU = 1,
 ): number {
   // SVG coordinate system: y=0 at top
   // U1 is at bottom, U{rackHeight} is at top
@@ -74,9 +75,10 @@ export function calculateDropPosition(
   // First, clamp mouseY to valid range
   const clampedY = Math.max(0, Math.min(mouseY, totalHeight));
 
-  // Calculate U from bottom (U1 = bottom)
-  // At y=totalHeight, U=1. At y=0, U=rackHeight
-  const uFromTop = Math.floor(clampedY / uHeight);
+  // Snap to configured increments from top-to-bottom.
+  // Example: snapIncrementU=0.5 allows U1, U1.5, U2, ...
+  const stepHeight = uHeight * snapIncrementU;
+  const uFromTop = Math.floor(clampedY / stepHeight) * snapIncrementU;
   const uPosition = rackHeight - uFromTop;
 
   // Clamp to valid range [1, rackHeight]

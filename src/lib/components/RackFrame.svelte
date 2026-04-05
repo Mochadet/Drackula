@@ -260,12 +260,7 @@
 <defs>
   <!-- Crosshatch pattern for blocked slots - uses two overlapping diagonal line sets
        for better visibility and accessibility (not relying solely on color) -->
-  <pattern
-    id={patternId}
-    patternUnits="userSpaceOnUse"
-    width="8"
-    height="8"
-  >
+  <pattern id={patternId} patternUnits="userSpaceOnUse" width="8" height="8">
     <!-- First diagonal (top-left to bottom-right) -->
     <line
       x1="0"
@@ -298,11 +293,9 @@
     class="blocked-slots-layer"
     transform="translate(0, {rackPadding + railWidth})"
   >
-    {#each blockedSlots as slot (slot.bottom + "-" + slot.top + "-" + (slot.slotPosition ?? "full"))}
+    {#each blockedSlots as slot, slotIndex (slot.bottom + "-" + slot.top + "-" + (slot.slotPosition ?? "full") + "-" + slotIndex)}
       {@const slotX =
-        slot.slotPosition === "right"
-          ? railWidth + slotWidth / 2
-          : railWidth}
+        slot.slotPosition === "right" ? railWidth + slotWidth / 2 : railWidth}
       {@const slotW =
         slot.slotPosition === "left" || slot.slotPosition === "right"
           ? slotWidth / 2

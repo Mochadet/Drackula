@@ -116,7 +116,11 @@ export type DropAction =
 function resolveCoordinates(
   coords: DropCoordinateInput,
   dims: RackDimensions,
-): { mouseY: number; xOffsetInRack: number; svgCoords: { x: number; y: number } } {
+): {
+  mouseY: number;
+  xOffsetInRack: number;
+  svgCoords: { x: number; y: number };
+} {
   const svgCoords = screenToSVG(
     coords.svgElement,
     coords.clientX,
@@ -161,18 +165,24 @@ export function resolveDropTarget(
   slotPositionOverride?: SlotPosition,
 ): DropTargetResult {
   const { mouseY, xOffsetInRack } = resolveCoordinates(coords, dims);
+  const snapIncrementU = device.u_height < 1 ? 0.5 : 1;
 
   const targetU = calculateDropPosition(
     mouseY,
     dims.rackHeight,
     dims.uHeight,
     dims.rackPadding,
+    snapIncrementU,
   );
 
   const deviceSlotWidth = device.slot_width ?? 2;
   const slotPosition =
     slotPositionOverride ??
-    calculateDropSlotPosition(xOffsetInRack, dims.interiorWidth, deviceSlotWidth);
+    calculateDropSlotPosition(
+      xOffsetInRack,
+      dims.interiorWidth,
+      deviceSlotWidth,
+    );
   const isHalfWidth = deviceSlotWidth === 1;
 
   const containerHover = detectContainerHover(
@@ -227,18 +237,24 @@ export function resolveDropAction(
   slotPositionOverride?: SlotPosition,
 ): DropAction {
   const { mouseY, xOffsetInRack } = resolveCoordinates(coords, dims);
+  const snapIncrementU = dragData.device.u_height < 1 ? 0.5 : 1;
 
   const targetU = calculateDropPosition(
     mouseY,
     dims.rackHeight,
     dims.uHeight,
     dims.rackPadding,
+    snapIncrementU,
   );
 
   const deviceSlotWidth = dragData.device.slot_width ?? 2;
   const slotPosition =
     slotPositionOverride ??
-    calculateDropSlotPosition(xOffsetInRack, dims.interiorWidth, deviceSlotWidth);
+    calculateDropSlotPosition(
+      xOffsetInRack,
+      dims.interiorWidth,
+      deviceSlotWidth,
+    );
 
   // Check for container slot drop (requires container to be selected)
   const containerTarget = detectContainerDropTarget(
@@ -302,7 +318,11 @@ export function resolveDropAction(
     };
   }
 
-  if (isCrossRackMove && dragData.sourceIndex !== undefined && dragData.sourceRackId) {
+  if (
+    isCrossRackMove &&
+    dragData.sourceIndex !== undefined &&
+    dragData.sourceRackId
+  ) {
     return {
       kind: "cross-rack-move",
       sourceRackId: dragData.sourceRackId,

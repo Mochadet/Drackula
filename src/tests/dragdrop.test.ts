@@ -91,6 +91,19 @@ describe("Drag and Drop Utilities", () => {
       expect(bottomPosition).toBe(1);
       expect(topPosition).toBe(42);
     });
+
+    it("supports half-U snap for 0.5U devices", () => {
+      // 12U rack, 0.5U increments (step height = 11px)
+      // y=12 falls into second half-step from top => U11.5
+      const position = calculateDropPosition(
+        12,
+        12,
+        U_HEIGHT,
+        RACK_PADDING,
+        0.5,
+      );
+      expect(position).toBe(11.5);
+    });
   });
 
   describe("getDropFeedback", () => {
@@ -180,6 +193,30 @@ describe("Drag and Drop Utilities", () => {
 
     it('returns "valid" for 1U device at top of 12U rack', () => {
       const feedback = getDropFeedback(emptyRack, deviceLibrary, 1, 12);
+      expect(feedback).toBe("valid");
+    });
+
+    it('returns "valid" for 0.5U device in free half-U at same U', () => {
+      const halfUDevice: DeviceType = {
+        slug: "half-u-device",
+        model: "Half U Device",
+        u_height: 0.5,
+        colour: "#50FA7B",
+        category: "network",
+      };
+
+      const rackWithHalfUDevice: Rack = {
+        ...emptyRack,
+        devices: [pd("half-u-1", "half-u-device", 5, "front")],
+      };
+
+      const feedback = getDropFeedback(
+        rackWithHalfUDevice,
+        [halfUDevice],
+        0.5,
+        5.5,
+      );
+
       expect(feedback).toBe("valid");
     });
   });

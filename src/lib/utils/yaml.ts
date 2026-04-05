@@ -72,10 +72,11 @@ export async function parseYaml<T = unknown>(yamlString: string): Promise<T> {
 
 /**
  * Order DeviceType fields according to schema v1.0.0
- * Field order: slug, manufacturer, model, part_number, u_height, is_full_depth, is_powered,
+ * Field order: slug, manufacturer, model, part_number, u_height, slot_width,
+ *              rack_widths, is_full_depth, is_powered,
  *              weight, weight_unit, airflow, front_image, rear_image, colour, category, tags,
  *              notes, serial_number, asset_tag, links, custom_fields, interfaces, power_ports,
- *              power_outlets, device_bays, inventory_items, subdevice_role, va_rating
+ *              power_outlets, device_bays, inventory_items, subdevice_role, va_rating, slots
  */
 function orderDeviceTypeFields(dt: DeviceType): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
@@ -88,6 +89,9 @@ function orderDeviceTypeFields(dt: DeviceType): Record<string, unknown> {
 
   // --- Physical Properties ---
   ordered.u_height = dt.u_height;
+  if (dt.slot_width !== undefined) ordered.slot_width = dt.slot_width;
+  if (dt.rack_widths !== undefined && dt.rack_widths.length > 0)
+    ordered.rack_widths = dt.rack_widths;
   if (dt.is_full_depth !== undefined) ordered.is_full_depth = dt.is_full_depth;
   if (dt.is_powered !== undefined) ordered.is_powered = dt.is_powered;
   if (dt.weight !== undefined) ordered.weight = dt.weight;
@@ -129,13 +133,17 @@ function orderDeviceTypeFields(dt: DeviceType): Record<string, unknown> {
   // --- Power Device Properties ---
   if (dt.va_rating !== undefined) ordered.va_rating = dt.va_rating;
 
+  // --- Container Support ---
+  if (dt.slots !== undefined && dt.slots.length > 0) ordered.slots = dt.slots;
+
   return ordered;
 }
 
 /**
  * Order PlacedDevice fields according to schema v1.0.0
- * Field order: id, device_type, name, position, face, front_image, rear_image,
- *              parent_device, device_bay, notes, custom_fields
+ * Field order: id, device_type, name, position, face, slot_position, ports,
+ *              front_image, rear_image, colour_override, parent_device,
+ *              device_bay, container_id, slot_id, notes, custom_fields
  */
 function orderPlacedDeviceFields(
   device: PlacedDevice,
@@ -148,16 +156,27 @@ function orderPlacedDeviceFields(
   if (device.name !== undefined) ordered.name = device.name;
   ordered.position = device.position;
   ordered.face = device.face;
+  if (device.slot_position !== undefined)
+    ordered.slot_position = device.slot_position;
+  if (device.ports !== undefined && device.ports.length > 0)
+    ordered.ports = device.ports;
 
   // --- Placement Image Override ---
   if (device.front_image !== undefined)
     ordered.front_image = device.front_image;
   if (device.rear_image !== undefined) ordered.rear_image = device.rear_image;
+  if (device.colour_override !== undefined)
+    ordered.colour_override = device.colour_override;
 
   // --- Subdevice Placement ---
   if (device.parent_device !== undefined)
     ordered.parent_device = device.parent_device;
   if (device.device_bay !== undefined) ordered.device_bay = device.device_bay;
+
+  // --- Container Child Placement ---
+  if (device.container_id !== undefined)
+    ordered.container_id = device.container_id;
+  if (device.slot_id !== undefined) ordered.slot_id = device.slot_id;
 
   // --- Extension Fields ---
   if (device.notes !== undefined) ordered.notes = device.notes;
@@ -169,7 +188,8 @@ function orderPlacedDeviceFields(
 
 /**
  * Order Rack fields according to schema v1.0.0
- * Field order: id, name, height, width, desc_units, form_factor, starting_unit, position, devices, notes
+ * Field order: id, name, height, width, desc_units, show_rear,
+ *              form_factor, starting_unit, position, devices, notes
  */
 function orderRackFields(rack: Rack): Record<string, unknown> {
   const ordered: Record<string, unknown> = {};
@@ -179,6 +199,7 @@ function orderRackFields(rack: Rack): Record<string, unknown> {
   ordered.height = rack.height;
   ordered.width = rack.width;
   ordered.desc_units = rack.desc_units;
+  ordered.show_rear = rack.show_rear;
   ordered.form_factor = rack.form_factor;
   ordered.starting_unit = rack.starting_unit;
   ordered.position = rack.position;

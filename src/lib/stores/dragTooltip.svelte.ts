@@ -10,6 +10,8 @@
 
 import type { DeviceType } from "$lib/types";
 
+const DRAG_SELECTION_LOCK_CLASS = "rackula-drag-selection-lock";
+
 /** Drag tooltip state */
 export interface DragTooltipState {
   /** Device being dragged */
@@ -41,6 +43,55 @@ let tooltipState = $state<DragTooltipState>({
   uHeight: 1,
 });
 
+let selectionLockCount = 0;
+
+function lockDocumentSelection(): void {
+  if (typeof document === "undefined") return;
+  selectionLockCount += 1;
+  if (selectionLockCount > 1) return;
+
+  document.documentElement.classList.add(DRAG_SELECTION_LOCK_CLASS);
+  document.body.classList.add(DRAG_SELECTION_LOCK_CLASS);
+}
+
+function unlockDocumentSelection(): void {
+  if (typeof document === "undefined") return;
+  selectionLockCount = Math.max(0, selectionLockCount - 1);
+  if (selectionLockCount !== 0) return;
+
+  document.documentElement.classList.remove(DRAG_SELECTION_LOCK_CLASS);
+  document.body.classList.remove(DRAG_SELECTION_LOCK_CLASS);
+}
+
+function forceUnlockDocumentSelection(): void {
+  if (typeof document === "undefined") return;
+  selectionLockCount = 0;
+  document.documentElement.classList.remove(DRAG_SELECTION_LOCK_CLASS);
+  document.body.classList.remove(DRAG_SELECTION_LOCK_CLASS);
+}
+
+if (typeof window !== "undefined") {
+  // Failsafe: some browsers can miss dragend/pointercancel, so always clear lock.
+  const releaseSelectionLock = () => {
+    if (selectionLockCount > 0) {
+      forceUnlockDocumentSelection();
+    }
+  };
+
+  window.addEventListener("blur", releaseSelectionLock, { capture: true });
+  window.addEventListener("dragend", releaseSelectionLock, { capture: true });
+  window.addEventListener("drop", releaseSelectionLock, { capture: true });
+  window.addEventListener("pointerup", releaseSelectionLock, { capture: true });
+  window.addEventListener("pointercancel", releaseSelectionLock, {
+    capture: true,
+  });
+  window.addEventListener("mouseup", releaseSelectionLock, { capture: true });
+  window.addEventListener("touchend", releaseSelectionLock, { capture: true });
+  window.addEventListener("touchcancel", releaseSelectionLock, {
+    capture: true,
+  });
+}
+
 /**
  * Show the drag tooltip at the specified cursor position
  * @param device - The device being dragged
@@ -62,6 +113,10 @@ export function showDragTooltip(
   clientX: number,
   clientY: number,
 ): void {
+  if (!tooltipState.visible) {
+    lockDocumentSelection();
+  }
+
   // Clamp uHeight to valid range (1-42U)
   const clampedUHeight = Math.max(1, Math.min(device.u_height, MAX_U_HEIGHT));
 
@@ -102,6 +157,10 @@ export function updateDragTooltipPosition(
  * Hide the drag tooltip
  */
 export function hideDragTooltip(): void {
+  if (tooltipState.visible) {
+    unlockDocumentSelection();
+  }
+
   tooltipState = {
     device: null,
     x: 0,

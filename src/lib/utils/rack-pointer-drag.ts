@@ -42,7 +42,9 @@ export interface PointerDragContext {
  * Create and attach pointer drag event listeners.
  * Returns a cleanup function that removes the listeners.
  */
-export function attachPointerDragListeners(ctx: PointerDragContext): () => void {
+export function attachPointerDragListeners(
+  ctx: PointerDragContext,
+): () => void {
   function handleDragMove(event: CustomEvent) {
     const svgElement = ctx.getSvgElement();
     if (!svgElement) return;
@@ -68,15 +70,17 @@ export function attachPointerDragListeners(ctx: PointerDragContext): () => void 
   function handleDragEnd(event: CustomEvent) {
     const svgElement = ctx.getSvgElement();
     if (!svgElement) return;
-    const { clientX, clientY, device, rackId: sourceRackId, deviceIndex } = event.detail;
+    const {
+      clientX,
+      clientY,
+      device,
+      rackId: sourceRackId,
+      deviceIndex,
+    } = event.detail;
 
     ctx.setDropPreview(null);
     ctx.setContainerHoverInfo(null);
     ctx.clearDraggingIndex();
-
-    // Preserve existing slot_position for pointer-based moves
-    const sourceRack = ctx.layoutStore.getRackById(sourceRackId);
-    const existingSlot = sourceRack?.devices[deviceIndex]?.slot_position;
 
     const rack = ctx.getRack();
     const deviceLibrary = ctx.getDeviceLibrary();
@@ -93,7 +97,6 @@ export function attachPointerDragListeners(ctx: PointerDragContext): () => void 
       { type: "rack-device", device, sourceRackId, sourceIndex: deviceIndex },
       faceFilter,
       ctx.getSelectedDeviceId(),
-      existingSlot,
     );
 
     dispatchDropAction(action, ctx.getEventCallbacks(), {
@@ -109,11 +112,20 @@ export function attachPointerDragListeners(ctx: PointerDragContext): () => void 
     ctx.onDragFinished();
   }
 
-  document.addEventListener("rackula:dragmove", handleDragMove as EventListener);
+  document.addEventListener(
+    "rackula:dragmove",
+    handleDragMove as EventListener,
+  );
   document.addEventListener("rackula:dragend", handleDragEnd as EventListener);
 
   return () => {
-    document.removeEventListener("rackula:dragmove", handleDragMove as EventListener);
-    document.removeEventListener("rackula:dragend", handleDragEnd as EventListener);
+    document.removeEventListener(
+      "rackula:dragmove",
+      handleDragMove as EventListener,
+    );
+    document.removeEventListener(
+      "rackula:dragend",
+      handleDragEnd as EventListener,
+    );
   };
 }

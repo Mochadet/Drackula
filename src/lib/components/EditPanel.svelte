@@ -39,12 +39,18 @@
   } from "$lib/utils/position";
   import { getToastStore } from "$lib/stores/toast.svelte";
   import { getDeviceDisplayName } from "$lib/utils/device";
-  import { COMMON_RACK_HEIGHTS } from "$lib/types/constants";
+  import {
+    COMMON_RACK_HEIGHTS,
+    ALL_CATEGORIES,
+    MIN_DEVICE_HEIGHT,
+    MAX_DEVICE_HEIGHT,
+  } from "$lib/types/constants";
   import type {
     Rack,
     DeviceType,
     PlacedDevice,
     DeviceFace,
+    DeviceCategory,
     AnnotationField,
     SlotPosition,
   } from "$lib/types";
@@ -104,6 +110,50 @@
   let notesSavedTimeout: ReturnType<typeof setTimeout> | undefined;
   let ipSaved = $state(false);
   let ipSavedTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  // Custom device type editing state
+  let customTypeName = $state("");
+  let customTypeHeight = $state(1);
+  let customTypeCategory = $state<DeviceCategory>("server");
+  let customTypeColour = $state("#4A7A8A");
+  let customTypeNotes = $state("");
+  let customTypeIsFullDepth = $state(true);
+  let customTypeIsHalfWidth = $state(false);
+  let customTypeRackWidthOption = $state<"10" | "19" | "both">("19");
+  let customEditorEl = $state<HTMLDivElement | null>(null);
+
+  function rackWidthsToOption(widths?: number[]): "10" | "19" | "both" {
+    const has10 = widths?.includes(10) ?? false;
+    const has19 = widths?.includes(19) ?? false;
+    if (has10 && has19) return "both";
+    if (has10) return "10";
+    return "19";
+  }
+
+  function optionToRackWidths(option: "10" | "19" | "both"): Array<10 | 19> {
+    if (option === "10") return [10];
+    if (option === "both") return [10, 19];
+    return [19];
+  }
+
+  function getCategoryLabel(cat: DeviceCategory): string {
+    const labels: Record<DeviceCategory, string> = {
+      server: "Server",
+      network: "Network",
+      "patch-panel": "Patch Panel",
+      power: "Power",
+      storage: "Storage",
+      kvm: "KVM",
+      "av-media": "AV/Media",
+      cooling: "Cooling",
+      shelf: "Shelf",
+      blank: "Blank Panel",
+      "cable-management": "Cable Management",
+      chassis: "Chassis",
+      other: "Other",
+    };
+    return labels[cat];
+  }
 
   // Cleanup timeouts on component destroy
   onDestroy(() => {
@@ -415,6 +465,13 @@
     return isCustomDevice(selectedDeviceInfo.device.slug);
   });
 
+  const canEditStructuralCustomFields = $derived.by(() => {
+    if (!selectedDeviceInfo) return false;
+    // Structural changes (height/width/depth support) are blocked while placed,
+    // because they can invalidate existing layout geometry.
+    return !layoutStore.hasDeviceTypePlacements(selectedDeviceInfo.device.slug);
+  });
+
   // Count how many times this device type is placed in the rack
   const deviceTypePlacementCount = $derived.by(() => {
     if (!selectedDeviceInfo) return 0;
@@ -424,6 +481,101 @@
       ? activeRack.devices.filter((d) => d.device_type === slug).length
       : 0;
   });
+
+  const customTypeFrontImage = $derived.by(() => {
+    if (!selectedDeviceInfo) return undefined;
+    return imageStore.getDeviceImage(selectedDeviceInfo.device.slug, "front");
+  });
+
+  const customTypeRearImage = $derived.by(() => {
+    if (!selectedDeviceInfo) return undefined;
+    return imageStore.getDeviceImage(selectedDeviceInfo.device.slug, "rear");
+  });
+
+  // Sync custom type edit form with selection
+  $effect(() => {
+    if (!selectedDeviceInfo || !isSelectedDeviceCustom) return;
+    const dt = selectedDeviceInfo.device;
+    customTypeName = dt.model ?? dt.slug;
+    customTypeHeight = dt.u_height;
+    customTypeCategory = dt.category;
+    customTypeColour = dt.colour;
+    customTypeNotes = dt.notes ?? "";
+    customTypeIsFullDepth = dt.is_full_depth !== false;
+    customTypeIsHalfWidth = dt.slot_width === 1;
+    customTypeRackWidthOption = rackWidthsToOption(dt.rack_widths);
+  });
+
+  function handleCustomTypeImageUpload(
+    face: "front" | "rear",
+    data: ImageData,
+  ) {
+    if (!selectedDeviceInfo || !isSelectedDeviceCustom) return;
+    imageStore.setDeviceImage(selectedDeviceInfo.device.slug, face, data);
+  }
+
+  function handleCustomTypeImageRemove(face: "front" | "rear") {
+    if (!selectedDeviceInfo || !isSelectedDeviceCustom) return;
+    imageStore.removeDeviceImage(selectedDeviceInfo.device.slug, face);
+  }
+
+  function saveCustomDeviceType() {
+    if (!selectedDeviceInfo || !isSelectedDeviceCustom) return;
+
+    const trimmedName = customTypeName.trim();
+    if (!trimmedName) {
+      toastStore.showToast("Name is required", "error");
+      return;
+    }
+
+    if (
+      customTypeHeight < MIN_DEVICE_HEIGHT ||
+      customTypeHeight > MAX_DEVICE_HEIGHT
+    ) {
+      toastStore.showToast(
+        `Height must be between ${MIN_DEVICE_HEIGHT} and ${MAX_DEVICE_HEIGHT}`,
+        "error",
+      );
+      return;
+    }
+
+    const deviceSlug = selectedDeviceInfo.device.slug;
+    const previous = selectedDeviceInfo.device;
+    const updates: Partial<DeviceType> = {
+      model: trimmedName,
+      category: customTypeCategory,
+      colour: customTypeColour,
+      notes: customTypeNotes.trim() || undefined,
+    };
+
+    if (canEditStructuralCustomFields) {
+      updates.u_height = customTypeHeight;
+      updates.is_full_depth = customTypeIsFullDepth ? undefined : false;
+      updates.slot_width = customTypeIsHalfWidth ? 1 : undefined;
+      updates.rack_widths = optionToRackWidths(customTypeRackWidthOption);
+    }
+
+    const hasChanges =
+      updates.model !== previous.model ||
+      updates.category !== previous.category ||
+      updates.colour !== previous.colour ||
+      updates.notes !== previous.notes ||
+      (canEditStructuralCustomFields &&
+        (updates.u_height !== previous.u_height ||
+          updates.is_full_depth !== previous.is_full_depth ||
+          updates.slot_width !== previous.slot_width ||
+          JSON.stringify(updates.rack_widths ?? []) !==
+            JSON.stringify(previous.rack_widths ?? [])));
+
+    if (!hasChanges) return;
+
+    layoutStore.updateDeviceType(deviceSlug, updates);
+    toastStore.showToast("Custom device updated", "success");
+  }
+
+  function openCustomTypeEditor() {
+    customEditorEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   // Sync device notes with selection
   $effect(() => {
@@ -950,6 +1102,16 @@
             {selectedDeviceInfo.device.manufacturer ?? "Generic"}
           </span>
         </div>
+        {#if isSelectedDeviceCustom}
+          <button
+            type="button"
+            class="btn-secondary"
+            onclick={openCustomTypeEditor}
+            aria-label="Edit custom device type"
+          >
+            Edit Custom Type
+          </button>
+        {/if}
       </div>
 
       <!-- Container context for child devices -->
@@ -1263,6 +1425,143 @@
         {/if}
       </div>
 
+      {#if isSelectedDeviceCustom}
+        <div class="custom-type-editor" bind:this={customEditorEl}>
+          <h4 class="section-title">Custom Device Type</h4>
+
+          <div class="form-group">
+            <label for="custom-type-name">Type Name</label>
+            <input
+              id="custom-type-name"
+              type="text"
+              class="input-field"
+              bind:value={customTypeName}
+              placeholder="Device type name"
+            />
+          </div>
+
+          <div class="form-row-two">
+            <div class="form-group">
+              <label for="custom-type-height">Height (U)</label>
+              <input
+                id="custom-type-height"
+                type="number"
+                class="input-field"
+                bind:value={customTypeHeight}
+                min={MIN_DEVICE_HEIGHT}
+                max={MAX_DEVICE_HEIGHT}
+                step="0.5"
+                disabled={!canEditStructuralCustomFields}
+              />
+            </div>
+            <div class="form-group">
+              <label for="custom-type-category">Category</label>
+              <select
+                id="custom-type-category"
+                class="input-field"
+                bind:value={customTypeCategory}
+              >
+                {#each ALL_CATEGORIES as cat (cat)}
+                  <option value={cat}>{getCategoryLabel(cat)}</option>
+                {/each}
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-two">
+            <div class="form-group">
+              <label for="custom-type-colour">Colour</label>
+              <input
+                id="custom-type-colour"
+                type="color"
+                class="input-field color-input-field"
+                bind:value={customTypeColour}
+              />
+            </div>
+            <div class="form-group">
+              <label for="custom-type-rack-width">Rack Width</label>
+              <select
+                id="custom-type-rack-width"
+                class="input-field"
+                bind:value={customTypeRackWidthOption}
+                disabled={!canEditStructuralCustomFields}
+              >
+                <option value="10">10 inch</option>
+                <option value="19">19 inch</option>
+                <option value="both">Both (10" & 19")</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row-two">
+            <div class="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  bind:checked={customTypeIsFullDepth}
+                  disabled={!canEditStructuralCustomFields}
+                />
+                Full Depth
+              </label>
+            </div>
+            <div class="form-group checkbox-group">
+              <label>
+                <input
+                  type="checkbox"
+                  bind:checked={customTypeIsHalfWidth}
+                  disabled={!canEditStructuralCustomFields}
+                />
+                Half Width
+              </label>
+            </div>
+          </div>
+
+          {#if !canEditStructuralCustomFields}
+            <p class="helper-text">
+              Height/width/depth fields are locked while this device type is
+              placed.
+            </p>
+          {/if}
+
+          <div class="form-group">
+            <label for="custom-type-notes">Type Notes</label>
+            <textarea
+              id="custom-type-notes"
+              class="input-field textarea"
+              bind:value={customTypeNotes}
+              rows="3"
+              placeholder="Notes about this custom device type..."
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <ImageUpload
+              face="front"
+              currentImage={customTypeFrontImage}
+              onupload={(data) => handleCustomTypeImageUpload("front", data)}
+              onremove={() => handleCustomTypeImageRemove("front")}
+            />
+          </div>
+
+          <div class="form-group">
+            <ImageUpload
+              face="rear"
+              currentImage={customTypeRearImage}
+              onupload={(data) => handleCustomTypeImageUpload("rear", data)}
+              onremove={() => handleCustomTypeImageRemove("rear")}
+            />
+          </div>
+
+          <button
+            type="button"
+            class="btn-primary"
+            onclick={saveCustomDeviceType}
+          >
+            Save Custom Device
+          </button>
+        </div>
+      {/if}
+
       <div class="actions">
         <button
           type="button"
@@ -1574,6 +1873,71 @@
 
   .actions {
     margin-top: var(--space-6);
+  }
+
+  .custom-type-editor {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--colour-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--colour-text);
+  }
+
+  .form-row-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+
+  .checkbox-group label {
+    gap: var(--space-2);
+    font-weight: var(--font-weight-regular);
+  }
+
+  .color-input-field {
+    height: 36px;
+    padding: var(--space-1);
+  }
+
+  .btn-primary {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--colour-selection);
+    border: none;
+    border-radius: var(--radius-sm);
+    color: white;
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color var(--duration-fast);
+  }
+
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--colour-selection) 88%, white 12%);
+  }
+
+  .btn-secondary {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    background: var(--button-bg);
+    border: 1px solid var(--colour-border);
+    border-radius: var(--radius-sm);
+    color: var(--colour-text);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    transition: background-color var(--duration-fast);
+  }
+
+  .btn-secondary:hover {
+    background: var(--button-bg-hover);
   }
 
   .btn-danger {
