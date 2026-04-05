@@ -83,6 +83,9 @@ function filterDevicesByFace(
 ): Rack["devices"] {
   if (!faceFilter) return devices;
   return devices.filter((d) => {
+    // Container children are rendered inside their parent container, not at rack level.
+    if (d.container_id) return false;
+
     // Both-face devices are always visible
     if (d.face === "both") return true;
     // Devices on this face are visible
@@ -819,15 +822,32 @@ export function generateExportSVG(
         (rack.height - positionU - device.u_height + 1) * U_HEIGHT +
         RACK_PADDING +
         RAIL_WIDTH;
+
+      // Mirror RackDevice.svelte slot placement logic so exports match canvas rendering.
+      const interiorWidth = RACK_WIDTH - RAIL_WIDTH * 2;
+      const rackHasTwoSlots = rack.width > 10;
+      const isHalfWidthDevice = device.slot_width === 1 && rackHasTwoSlots;
+      const slotPosition = isHalfWidthDevice
+        ? placedDevice.slot_position === "right"
+          ? "right"
+          : placedDevice.slot_position === "left"
+            ? "left"
+            : "full"
+        : "full";
+      const slotXOffset = slotPosition === "right" ? interiorWidth / 2 : 0;
+      const slotWidth =
+        slotPosition === "full" ? interiorWidth : interiorWidth / 2;
+
       const deviceHeight = device.u_height * U_HEIGHT - 2;
-      const deviceWidth = RACK_WIDTH - RAIL_WIDTH * 2 - 4;
+      const deviceX = RAIL_WIDTH + slotXOffset + 2;
+      const deviceWidth = slotWidth - 4;
 
       // Always render device rect as background
       const deviceRect = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "rect",
       );
-      deviceRect.setAttribute("x", String(RAIL_WIDTH + 2));
+      deviceRect.setAttribute("x", String(deviceX));
       deviceRect.setAttribute("y", String(deviceY + 1));
       deviceRect.setAttribute("width", String(deviceWidth));
       deviceRect.setAttribute("height", String(deviceHeight));
@@ -855,7 +875,7 @@ export function generateExportSVG(
           "http://www.w3.org/2000/svg",
           "image",
         );
-        imageEl.setAttribute("x", String(RAIL_WIDTH + 2));
+        imageEl.setAttribute("x", String(deviceX));
         imageEl.setAttribute("y", String(deviceY + 1));
         imageEl.setAttribute("width", String(deviceWidth));
         imageEl.setAttribute("height", String(deviceHeight));
@@ -864,7 +884,7 @@ export function generateExportSVG(
         rackGroup.appendChild(imageEl);
 
         // Clip the image to rounded corners
-        const clipId = `clip-${device.slug}-${placedDevice.position}`;
+        const clipId = `clip-${placedDevice.id}-${slotPosition}`;
         const clipPath = document.createElementNS(
           "http://www.w3.org/2000/svg",
           "clipPath",
@@ -874,7 +894,7 @@ export function generateExportSVG(
           "http://www.w3.org/2000/svg",
           "rect",
         );
-        clipRect.setAttribute("x", String(RAIL_WIDTH + 2));
+        clipRect.setAttribute("x", String(deviceX));
         clipRect.setAttribute("y", String(deviceY + 1));
         clipRect.setAttribute("width", String(deviceWidth));
         clipRect.setAttribute("height", String(deviceHeight));
@@ -887,7 +907,7 @@ export function generateExportSVG(
         // Category icon (only for devices tall enough and with a category)
         if (deviceHeight >= 20 && device.category) {
           const iconSize = 12;
-          const iconX = RAIL_WIDTH + 6;
+          const iconX = deviceX + 4;
           const iconY = deviceY + (deviceHeight - iconSize) / 2 + 1;
 
           const iconSvg = document.createElementNS(
@@ -937,7 +957,7 @@ export function generateExportSVG(
         "http://www.w3.org/2000/svg",
         "text",
       );
-      deviceNameEl.setAttribute("x", String(RACK_WIDTH / 2));
+      deviceNameEl.setAttribute("x", String(deviceX + deviceWidth / 2));
       deviceNameEl.setAttribute("y", String(deviceY + deviceHeight / 2 + 1));
       deviceNameEl.setAttribute("fill", "#ffffff");
       deviceNameEl.setAttribute("font-size", String(fittedLabel.fontSize));

@@ -108,6 +108,15 @@ body {
   overflow-x: hidden; /* Prevent horizontal scroll on narrow viewports */
 }
 
+/* Prevent accidental browser text selection while dragging devices. */
+html.rackula-drag-selection-lock,
+body.rackula-drag-selection-lock,
+html.rackula-drag-selection-lock *,
+body.rackula-drag-selection-lock * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 #app {
   height: 100%;
 }

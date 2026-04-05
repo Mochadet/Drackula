@@ -39,6 +39,7 @@ export function getBlockedSlots(
   deviceLibrary: DeviceType[],
 ): URange[] {
   const blocked: URange[] = [];
+  const seenRanges = new Set<string>();
 
   for (const placedDevice of rack.devices) {
     // Skip devices on the same face (they're visible, no need for hatching)
@@ -71,6 +72,12 @@ export function getBlockedSlots(
     const isHalfWidth = deviceType.slot_width === 1;
     const slotPosition = isHalfWidth ? placedDevice.slot_position : undefined;
 
+    const rangeKey = `${bottom}-${top}-${slotPosition ?? "full"}`;
+    if (seenRanges.has(rangeKey)) {
+      continue;
+    }
+
+    seenRanges.add(rangeKey);
     blocked.push({ bottom, top, slotPosition });
   }
 

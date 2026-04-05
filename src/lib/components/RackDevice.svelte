@@ -509,17 +509,10 @@
   function handleContextMenu(event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
-    // Use element bounds as fallback when clientX/Y are outside the device
-    // (panzoom transforms can distort coordinates for half-width devices)
-    let x = event.clientX;
-    let y = event.clientY;
-    if (groupElement) {
-      const rect = groupElement.getBoundingClientRect();
-      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-        x = rect.left + rect.width / 2;
-        y = rect.top + rect.height / 2;
-      }
-    }
+    // Anchor menu at pointer position and clamp to viewport bounds.
+    // Using element bounds as fallback caused misplaced menus on transformed SVG groups.
+    const x = Math.min(Math.max(event.clientX, 0), window.innerWidth - 1);
+    const y = Math.min(Math.max(event.clientY, 0), window.innerHeight - 1);
     openDeviceContextMenu(x, y);
   }
 
