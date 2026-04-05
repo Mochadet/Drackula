@@ -53,8 +53,9 @@
   let apiAvailable = $state(true);
   let deletingId = $state<string | null>(null);
 
-  /** Only show offline warning if user previously had API working */
-  let showOfflineWarning = $derived(!apiAvailable && hasEverConnectedToApi());
+  /** Show persistence guidance whenever API is unavailable */
+  let showApiUnavailable = $derived(!apiAvailable);
+  let hadApiBefore = $derived(hasEverConnectedToApi());
 
   onMount(async () => {
     // Initialize persistence and check API health
@@ -174,14 +175,30 @@
       </button>
     </div>
 
-    {#if showOfflineWarning}
+    {#if showApiUnavailable}
       <div class="offline-warning">
         <IconCloudOff size={18} />
         <div class="offline-text">
-          <strong>Persistence API unavailable</strong>
+          <strong>
+            {#if hadApiBefore}
+              Persistence API unavailable
+            {:else}
+              Server persistence not connected
+            {/if}
+          </strong>
           <p>
-            Working in offline mode. Changes will be saved to browser storage.
+            {#if hadApiBefore}
+              Working in offline mode. Changes will be saved to browser storage.
+            {:else}
+              Start the API service to save and reopen projects from your
+              instance instead of importing ZIP files each time.
+            {/if}
           </p>
+          {#if !hadApiBefore}
+            <p class="offline-hint">
+              Tip: run API on port 3000, then reload this page.
+            </p>
+          {/if}
         </div>
         <button class="continue-btn" onclick={handleContinueOffline}>
           Continue

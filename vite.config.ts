@@ -111,6 +111,14 @@ export default defineConfig(() => ({
   publicDir: "static",
   plugins: [svelte()],
   server: {
+    proxy: {
+      // Local non-Docker dev: route frontend /api calls to the API sidecar.
+      // Override target with VITE_API_PROXY_TARGET if needed.
+      "/api": {
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:3001",
+        changeOrigin: true,
+      },
+    },
     watch: {
       // Ignore git worktrees and other development artifacts
       // Vite already ignores .git/, node_modules/, test-results/, cacheDir, build.outDir
