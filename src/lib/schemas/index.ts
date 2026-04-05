@@ -805,23 +805,30 @@ function needsPositionMigration(
   version: string | undefined,
   devices: { position: number; container_id?: string }[],
 ): boolean {
+  const rackLevelDevices = devices.filter((d) => d.container_id === undefined);
+
+  // Fractional rack-level positions (e.g., 1.5) are a strong legacy signal.
+  // Modern internal-unit positions are stored as integers.
+  const hasFractionalRackPosition = rackLevelDevices.some(
+    (d) => !Number.isInteger(d.position),
+  );
+
   // Check 1: Version-based detection
   // Layouts before 0.7.0 use old U-value positions
-  if (!version || compareVersions(version, "0.7.0") < 0) {
+  if (version && compareVersions(version, "0.7.0") < 0) {
     return true;
   }
 
-  // Check 2: Heuristic fallback
-  // If any rack-level device has position < UNITS_PER_U, it's old format
-  // (U1 in new format = UNITS_PER_U, so valid positions are >= UNITS_PER_U)
-  const hasOldFormatPosition = devices.some(
-    (d) =>
-      d.container_id === undefined &&
-      d.position >= 1 &&
-      d.position < UNITS_PER_U,
-  );
-  if (hasOldFormatPosition) {
-    return true;
+  // For modern layouts (version >= 0.7.0), only migrate when fractional values
+  // clearly indicate legacy U-value coordinates mislabeled with a newer version.
+  if (version && compareVersions(version, "0.7.0") >= 0) {
+    return hasFractionalRackPosition;
+  }
+
+  // No version present: be conservative and only migrate when there's a clear
+  // legacy signal (fractional U-value positions).
+  if (!version) {
+    return hasFractionalRackPosition;
   }
 
   return false;

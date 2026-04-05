@@ -1599,16 +1599,46 @@ describe("LayoutSchema device ID deduplication (#1363)", () => {
           starting_unit: 1,
           position: 0,
           devices: [
-            { id: "dupe-id", device_type: "server-a", position: 100, face: "front" as const },
-            { id: "dupe-id", device_type: "server-b", position: 200, face: "front" as const },
-            { id: "unique-id", device_type: "server-c", position: 300, face: "front" as const },
+            {
+              id: "dupe-id",
+              device_type: "server-a",
+              position: 100,
+              face: "front" as const,
+            },
+            {
+              id: "dupe-id",
+              device_type: "server-b",
+              position: 200,
+              face: "front" as const,
+            },
+            {
+              id: "unique-id",
+              device_type: "server-c",
+              position: 300,
+              face: "front" as const,
+            },
           ],
         },
       ],
       device_types: [
-        { slug: "server-a", u_height: 1, colour: "#4A90A4", category: "server" as const },
-        { slug: "server-b", u_height: 1, colour: "#4A90A4", category: "server" as const },
-        { slug: "server-c", u_height: 1, colour: "#4A90A4", category: "server" as const },
+        {
+          slug: "server-a",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
+        {
+          slug: "server-b",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
+        {
+          slug: "server-c",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
       ],
       settings: baseSettings,
     };
@@ -1644,8 +1674,18 @@ describe("LayoutSchema device ID deduplication (#1363)", () => {
           starting_unit: 1,
           position: 0,
           devices: [
-            { id: "dupe-id", device_type: "server-a", position: 100, face: "front" as const },
-            { id: "dupe-id", device_type: "server-b", position: 200, face: "front" as const },
+            {
+              id: "dupe-id",
+              device_type: "server-a",
+              position: 100,
+              face: "front" as const,
+            },
+            {
+              id: "dupe-id",
+              device_type: "server-b",
+              position: 200,
+              face: "front" as const,
+            },
           ],
         },
         {
@@ -1659,15 +1699,40 @@ describe("LayoutSchema device ID deduplication (#1363)", () => {
           starting_unit: 1,
           position: 1,
           devices: [
-            { id: "dupe-id-2", device_type: "server-a", position: 100, face: "front" as const },
-            { id: "dupe-id-2", device_type: "server-c", position: 200, face: "front" as const },
+            {
+              id: "dupe-id-2",
+              device_type: "server-a",
+              position: 100,
+              face: "front" as const,
+            },
+            {
+              id: "dupe-id-2",
+              device_type: "server-c",
+              position: 200,
+              face: "front" as const,
+            },
           ],
         },
       ],
       device_types: [
-        { slug: "server-a", u_height: 1, colour: "#4A90A4", category: "server" as const },
-        { slug: "server-b", u_height: 1, colour: "#4A90A4", category: "server" as const },
-        { slug: "server-c", u_height: 1, colour: "#4A90A4", category: "server" as const },
+        {
+          slug: "server-a",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
+        {
+          slug: "server-b",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
+        {
+          slug: "server-c",
+          u_height: 1,
+          colour: "#4A90A4",
+          category: "server" as const,
+        },
       ],
       settings: baseSettings,
     };
@@ -2055,7 +2120,7 @@ describe("LayoutSchema position migration", () => {
       }
     });
 
-    it("migrates positions when version is missing", () => {
+    it("does not migrate integer positions when version is missing", () => {
       const layout = {
         name: "Test Layout",
         racks: [
@@ -2078,24 +2143,64 @@ describe("LayoutSchema position migration", () => {
       const result = LayoutSchema.safeParse(layout);
       expect(result.success).toBe(true);
       if (result.success) {
-        // Position 5 * 6 = 30
-        expect(result.data.racks[0]!.devices[0]!.position).toBe(30);
+        expect(result.data.racks[0]!.devices[0]!.position).toBe(5);
+      }
+    });
+
+    it("migrates fractional positions when version is missing", () => {
+      const layout = {
+        name: "Test Layout",
+        racks: [
+          createTestRack({
+            id: "rack-1",
+            devices: [
+              {
+                id: "device-1",
+                device_type: "server",
+                position: 1.5,
+                face: "front" as const,
+              },
+            ],
+          }),
+        ],
+        device_types: [],
+        settings: createTestLayoutSettings({ show_labels_on_images: true }),
+      };
+
+      const result = LayoutSchema.safeParse(layout);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Position 1.5 * 6 = 9
+        expect(result.data.racks[0]!.devices[0]!.position).toBe(9);
       }
     });
   });
 
   describe("heuristic fallback", () => {
-    it("migrates when position < 6 even if version >= 0.7.0", () => {
-      // Edge case: version says new, but data says old
+    it("does not migrate integer internal positions even if position < 6", () => {
+      // Regression: modern layouts can legitimately have internal positions < 6
+      // (e.g. 0.5U at bottom = 3). These must not be remigrated.
       const layout = createMigrationTestLayout("0.7.0", [
-        { id: "device-1", device_type: "server", position: 5, face: "front" },
+        { id: "device-1", device_type: "server", position: 3, face: "front" },
       ]);
 
       const result = LayoutSchema.safeParse(layout);
       expect(result.success).toBe(true);
       if (result.success) {
-        // Heuristic triggered: 5 * 6 = 30
-        expect(result.data.racks[0]!.devices[0]!.position).toBe(30);
+        expect(result.data.racks[0]!.devices[0]!.position).toBe(3);
+      }
+    });
+
+    it("migrates fractional positions even if version >= 0.7.0", () => {
+      // Edge case: version says new, but fractional values reveal legacy format.
+      const layout = createMigrationTestLayout("0.7.0", [
+        { id: "device-1", device_type: "server", position: 1.5, face: "front" },
+      ]);
+
+      const result = LayoutSchema.safeParse(layout);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.racks[0]!.devices[0]!.position).toBe(9);
       }
     });
 
